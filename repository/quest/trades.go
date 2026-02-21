@@ -29,7 +29,7 @@ func (r *trades) InsertMany(ctx context.Context, trades []entity.TradeActivity) 
 			sb.WriteString(",")
 		}
 
-		sb.WriteString(fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d)", i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6))
+		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d,$%d,$%d)", i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6)
 
 		priceFl, _ := trade.FilledPrice.Float64()
 		quantityFl, _ := trade.TradedVolume.Float64()
