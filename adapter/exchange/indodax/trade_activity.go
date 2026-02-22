@@ -26,7 +26,7 @@ func (i *indodax) processTradeActivity(data json.RawMessage) error {
 			continue
 		}
 
-		i.tradeActivityCh <- i.convertTradeActivity(key, ta)
+		i.broadcastTradeActivity(i.convertTradeActivity(key, ta))
 
 		seen[key] = 1
 	}

@@ -29,8 +29,13 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	}
 	logrus.Info("Connected to postgres")
 
-	orerbookCh := make(chan entity.Orderbook)
-	tradeActivityCh := make(chan entity.TradeActivity)
+	orerbookStreamCh := make(chan entity.Orderbook, 50)
+	tradeActivityStreamCh := make(chan entity.TradeActivity, 50)
+
+	tradeActivityStorageCh := make(chan entity.TradeActivity, 50)
+
+	orderbookCh := []chan entity.Orderbook{orerbookStreamCh}
+	tradeActivityCh := []chan entity.TradeActivity{tradeActivityStreamCh, tradeActivityStorageCh}
 
 	indodax := indodax.NewClient(
 		config.Exchange.Indodax.BaseUrl,
@@ -41,7 +46,7 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 		config.Exchange.Indodax.OrderbookWsChannelPrefix,
 		config.Exchange.Indodax.TradeActivityWsChannelPrefix,
 		time.Duration(config.Exchange.Indodax.Timeout),
-		orerbookCh,
+		orderbookCh,
 		tradeActivityCh,
 	)
 
@@ -51,7 +56,7 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	storageService := service.NewStorage(
 		tradesRepo,
 		candles1mRepo,
-		tradeActivityCh,
+		tradeActivityStorageCh,
 	)
 
 	commonHandler := hHandler.NewCommon(&APP_HEALTHY)

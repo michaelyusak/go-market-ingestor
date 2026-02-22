@@ -24,8 +24,8 @@ type indodax struct {
 	pairs      map[string]entity.PairMeta
 	orderbooks map[string]entity.Orderbook
 
-	orderbookCh     chan entity.Orderbook
-	tradeActivityCh chan entity.TradeActivity
+	orderbookCh     []chan entity.Orderbook
+	tradeActivityCh []chan entity.TradeActivity
 
 	mu sync.Mutex
 }
@@ -39,8 +39,8 @@ func NewClient(
 	orderBookChanPrefix,
 	tradeActivityChanPrefix string,
 	tradeTimeout time.Duration,
-	orderbookCh chan entity.Orderbook,
-	tradeActivityCh chan entity.TradeActivity,
+	orderbookCh []chan entity.Orderbook,
+	tradeActivityCh []chan entity.TradeActivity,
 ) *indodax {
 	return &indodax{
 		baseUrl:                 baseUrl,
@@ -59,5 +59,25 @@ func NewClient(
 
 		orderbookCh:     orderbookCh,
 		tradeActivityCh: tradeActivityCh,
+	}
+}
+
+func (i *indodax) broadcastOrderbook(ob entity.Orderbook) {
+	for _, ch := range i.orderbookCh {
+		select {
+		case ch <- ob:
+			// sent successfully
+		default:
+			// channel not ready, skip or log
+		}
+	}
+}
+
+func (i *indodax) broadcastTradeActivity(ta entity.TradeActivity) {
+	for _, ch := range i.tradeActivityCh {
+		select {
+		case ch <- ta:
+		default:
+		}
 	}
 }
