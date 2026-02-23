@@ -4,12 +4,15 @@ import (
 	"michaelyusak/go-market-ingestor.git/adapter/exchange/indodax"
 	"michaelyusak/go-market-ingestor.git/config"
 	"michaelyusak/go-market-ingestor.git/entity"
+	"michaelyusak/go-market-ingestor.git/handler"
 	"michaelyusak/go-market-ingestor.git/repository/quest"
 	"michaelyusak/go-market-ingestor.git/service"
+	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	hAdaptor "github.com/michaelyusak/go-helper/adaptor"
 	hHandler "github.com/michaelyusak/go-helper/handler"
 	hMiddleware "github.com/michaelyusak/go-helper/middleware"
@@ -19,6 +22,7 @@ import (
 type routerOpts struct {
 	handler struct {
 		common *hHandler.Common
+		stream *handler.Stream
 	}
 }
 
@@ -29,12 +33,10 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	}
 	logrus.Info("Connected to postgres")
 
-	orerbookStreamCh := make(chan entity.Orderbook, 50)
 	tradeActivityStreamCh := make(chan entity.TradeActivity, 50)
 
 	tradeActivityStorageCh := make(chan entity.TradeActivity, 50)
 
-	orderbookCh := []chan entity.Orderbook{orerbookStreamCh}
 	tradeActivityCh := []chan entity.TradeActivity{tradeActivityStreamCh, tradeActivityStorageCh}
 
 	indodax := indodax.NewClient(
@@ -46,9 +48,16 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 		config.Exchange.Indodax.OrderbookWsChannelPrefix,
 		config.Exchange.Indodax.TradeActivityWsChannelPrefix,
 		time.Duration(config.Exchange.Indodax.Timeout),
-		orderbookCh,
 		tradeActivityCh,
 	)
+
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
 
 	tradesRepo := quest.NewTrades(db)
 	candles1mRepo := quest.NewCandles1m(db)
@@ -58,10 +67,18 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 		candles1mRepo,
 		tradeActivityStorageCh,
 	)
+	streamService := service.NewStream(
+		tradeActivityStreamCh,
+	)
 
 	commonHandler := hHandler.NewCommon(&APP_HEALTHY)
+	streamHandler := handler.NewStream(
+		streamService,
+		upgrader,
+	)
 
 	storageService.Start()
+	streamService.Start()
 
 	pairsToListen := []string{}
 	for pair, listen := range config.Exchange.Indodax.PairsToListen {
@@ -74,8 +91,10 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	return createRouter(routerOpts{
 		handler: struct {
 			common *hHandler.Common
+			stream *handler.Stream
 		}{
 			common: commonHandler,
+			stream: streamHandler,
 		},
 	},
 		config.Cors.AllowedOrigins,
@@ -98,6 +117,7 @@ func createRouter(opts routerOpts, allowedOrigins []string) *gin.Engine {
 
 	corsRouting(router, corsConfig, allowedOrigins)
 	commonRouting(router, opts.handler.common)
+	streamRouting(router, opts.handler.stream)
 
 	return router
 }
@@ -118,4 +138,9 @@ func commonRouting(router *gin.Engine, handler *hHandler.Common) {
 
 func staticRouting(router *gin.Engine, localStorageStaticPath, localStorageDirectory string) {
 	router.Static(localStorageStaticPath, localStorageDirectory)
+}
+
+func streamRouting(router *gin.Engine, handler *handler.Stream) {
+	router.POST("/v1/stream/create", handler.Create)
+	router.GET("/v1/stream/start", handler.Start)
 }

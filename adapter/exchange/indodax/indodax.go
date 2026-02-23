@@ -21,10 +21,8 @@ type indodax struct {
 	client       *resty.Client
 	tradeTimeout time.Duration
 
-	pairs      map[string]entity.PairMeta
-	orderbooks map[string]entity.Orderbook
+	pairs map[string]entity.PairMeta
 
-	orderbookCh     []chan entity.Orderbook
 	tradeActivityCh []chan entity.TradeActivity
 
 	mu sync.Mutex
@@ -39,7 +37,6 @@ func NewClient(
 	orderBookChanPrefix,
 	tradeActivityChanPrefix string,
 	tradeTimeout time.Duration,
-	orderbookCh []chan entity.Orderbook,
 	tradeActivityCh []chan entity.TradeActivity,
 ) *indodax {
 	return &indodax{
@@ -54,22 +51,9 @@ func NewClient(
 		client:       resty.New(),
 		tradeTimeout: tradeTimeout,
 
-		pairs:      map[string]entity.PairMeta{},
-		orderbooks: map[string]entity.Orderbook{},
+		pairs: map[string]entity.PairMeta{},
 
-		orderbookCh:     orderbookCh,
 		tradeActivityCh: tradeActivityCh,
-	}
-}
-
-func (i *indodax) broadcastOrderbook(ob entity.Orderbook) {
-	for _, ch := range i.orderbookCh {
-		select {
-		case ch <- ob:
-			// sent successfully
-		default:
-			// channel not ready, skip or log
-		}
 	}
 }
 
@@ -77,7 +61,9 @@ func (i *indodax) broadcastTradeActivity(ta entity.TradeActivity) {
 	for _, ch := range i.tradeActivityCh {
 		select {
 		case ch <- ta:
+			// sent successfully
 		default:
+			// channel not ready, skip or log
 		}
 	}
 }

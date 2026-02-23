@@ -123,19 +123,6 @@ func (i *indodax) ListenMarketData(id int, pairs []string) error {
 					continue loop
 				}
 
-				if strings.HasPrefix(msg.Result.Channel, i.orderBookChanPrefix) {
-					logrus.WithField("channel", msg.Result.Channel).Debug("[adapter][exchange][indodax][ListenMarketData] new orderbook message")
-					err = i.processOrderbook(msg.Result.Data.Data, strings.Trim(msg.Result.Channel, i.orderBookChanPrefix))
-					if err != nil {
-						quit <- marketDataListenerEvent{
-							Close: false,
-							Error: err,
-							Info:  "[adapters][exchanges][indodax][ListenMarketData][processOrderbook]",
-						}
-					}
-					continue loop
-				}
-
 				if strings.HasPrefix(msg.Result.Channel, i.tradeActivityChanPrefix) {
 					logrus.WithField("channel", msg.Result.Channel).Debug("[adapter][exchange][indodax][ListenMarketData] new trade activity message")
 					err = i.processTradeActivity(msg.Result.Data.Data)
@@ -161,19 +148,6 @@ func (i *indodax) ListenMarketData(id int, pairs []string) error {
 	mapIdx := 1
 
 	for _, pair := range pairs {
-		orderbookChanName := i.orderBookChanPrefix + pair
-		subscribeOrderbookMsg := indodaxEntity.IndodaxWsMessage{
-			Method: 1,
-			Params: indodaxEntity.IndodaxWsMessageParams{
-				Channel: orderbookChanName,
-			},
-			Id: clientId,
-		}
-		c.WriteJSON(subscribeOrderbookMsg)
-		logrus.WithFields(logrus.Fields{
-			"id": id,
-		}).Debugf("[adapter][exchanges][indodax][ListenMarketData] %v/%v subscribed to %s orderbook channel", mapIdx, len(pairs), pair)
-
 		tradeActivityChanName := i.tradeActivityChanPrefix + pair
 		subscribeTradeActivityMsg := indodaxEntity.IndodaxWsMessage{
 			Method: 1,
