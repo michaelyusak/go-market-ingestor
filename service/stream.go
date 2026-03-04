@@ -198,7 +198,9 @@ func (s *stream) StreamCandles(ctx context.Context, ch chan []byte, channel, tok
 	s.mu.Unlock()
 
 	if !ok {
-		logrus.Warn("[service][stream][StreamCandles] stream not found")
+		logrus.
+			WithField("channel", channel).
+			Warn("[service][stream][StreamCandles] stream not found")
 
 		return apperror.BadRequestError(apperror.AppErrorOpt{
 			Code:    http.StatusNotFound,
@@ -226,6 +228,7 @@ func (s *stream) StreamCandles(ctx context.Context, ch chan []byte, channel, tok
 
 	logrus.
 		WithField("channel", channel).
+		WithField("size", sizeStr).
 		Info("[service][stream][StreamCandles] channel subscribed")
 
 	return nil
