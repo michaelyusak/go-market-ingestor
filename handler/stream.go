@@ -184,8 +184,5 @@ func (h *Stream) Start(ctx *gin.Context) {
 		h.streamService.Stop(channel, token)
 	}
 
-	err = common.CloseConn(conn)
-	if err != nil {
-		ctx.Error(err)
-	}
+	common.CloseConn(conn)
 }
