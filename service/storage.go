@@ -110,13 +110,25 @@ func (s *storage) storeTrades(ctx context.Context, trades []entity.TradeActivity
 }
 
 func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActivity) {
-	candleBuffers := map[time.Time]*entity.Candle{}
+	candleBuffers := map[string]map[string]map[time.Time]*entity.Candle{}
 
 	for _, trade := range trades {
+		exchangeCandles, ok := candleBuffers[trade.Exchange]
+		if !ok {
+			exchangeCandles = map[string]map[time.Time]*entity.Candle{}
+			candleBuffers[trade.Exchange] = exchangeCandles
+		}
+
+		exchangeSymbolCandles, ok := exchangeCandles[trade.Pair]
+		if !ok {
+			exchangeSymbolCandles = map[time.Time]*entity.Candle{}
+			exchangeCandles[trade.Pair] = map[time.Time]*entity.Candle{}
+		}
+
 		tradeTime := time.Unix(trade.Epoch, 0)
 		normalizedTime := time.Date(tradeTime.Year(), tradeTime.Month(), tradeTime.Day(), tradeTime.Hour(), tradeTime.Minute(), 0, 0, tradeTime.Location())
 
-		buf, ok := candleBuffers[normalizedTime]
+		buf, ok := exchangeSymbolCandles[normalizedTime]
 		if !ok {
 			stored, err := s.candles1mRepo.GetOne(ctx, normalizedTime, trade.Exchange, trade.Pair)
 			if err != nil {
@@ -148,7 +160,7 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 				Volume:   trade.BaseVolume,
 			}
 
-			candleBuffers[normalizedTime] = buf
+			exchangeSymbolCandles[normalizedTime] = buf
 			continue
 		}
 
@@ -163,46 +175,50 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 			buf.Low = trade.FilledPrice
 		}
 
-		candleBuffers[normalizedTime] = buf
+		// candleBuffers[normalizedTime] = buf
 	}
 
-	for _, candle := range candleBuffers {
-		if candle.Dirty {
-			err := s.candles1mRepo.UpdateOne(ctx, *candle)
-			if err != nil {
+	for _, exchangeCandles := range candleBuffers {
+		for _, exchangeSymbolCandles := range exchangeCandles {
+			for _, candle := range exchangeSymbolCandles {
+				if candle.Dirty {
+					err := s.candles1mRepo.UpdateOne(ctx, *candle)
+					if err != nil {
+						logrus.
+							WithError(err).
+							WithField("exchange", candle.Exchange).
+							WithField("pair", candle.Pair).
+							WithField("time", time.Unix(candle.Epoch, 0).String()).
+							Error("[service][storage][update1mCandle][candles1mRepo.UpdateOne]")
+						continue
+					}
+
+					logrus.
+						WithField("exchange", candle.Exchange).
+						WithField("pair", candle.Pair).
+						WithField("time", time.Unix(candle.Epoch, 0).String()).
+						Info("[service][storage][update1mCandle]  updated candle")
+
+					continue
+				}
+
+				err := s.candles1mRepo.InsertOne(ctx, *candle)
+				if err != nil {
+					logrus.
+						WithError(err).
+						WithField("exchange", candle.Exchange).
+						WithField("pair", candle.Pair).
+						WithField("time", time.Unix(candle.Epoch, 0).String()).
+						Error("[service][storage][update1mCandle][candles1mRepo.InsertOne]")
+					continue
+				}
+
 				logrus.
-					WithError(err).
 					WithField("exchange", candle.Exchange).
 					WithField("pair", candle.Pair).
 					WithField("time", time.Unix(candle.Epoch, 0).String()).
-					Error("[service][storage][update1mCandle][candles1mRepo.UpdateOne]")
-				continue
+					Info("[service][storage][update1mCandle] inserted candle")
 			}
-
-			logrus.
-				WithField("exchange", candle.Exchange).
-				WithField("pair", candle.Pair).
-				WithField("time", time.Unix(candle.Epoch, 0).String()).
-				Info("[service][storage][update1mCandle]  updated candle")
-
-			continue
 		}
-
-		err := s.candles1mRepo.InsertOne(ctx, *candle)
-		if err != nil {
-			logrus.
-				WithError(err).
-				WithField("exchange", candle.Exchange).
-				WithField("pair", candle.Pair).
-				WithField("time", time.Unix(candle.Epoch, 0).String()).
-				Error("[service][storage][update1mCandle][candles1mRepo.InsertOne]")
-			continue
-		}
-
-		logrus.
-			WithField("exchange", candle.Exchange).
-			WithField("pair", candle.Pair).
-			WithField("time", time.Unix(candle.Epoch, 0).String()).
-			Info("[service][storage][update1mCandle] inserted candle")
 	}
 }
