@@ -13,6 +13,7 @@ type TradeActivity struct {
 	Epoch        int64           `json:"epoch"`
 	Pair         string          `json:"pair"`
 	Side         TradeSide       `json:"side"`
+	Symbol       string          `json:"symbol"`
 	Exchange     string          `json:"exchange"`
 	FilledPrice  decimal.Decimal `json:"filled_price"`
 	BaseVolume   decimal.Decimal `json:"base_volume"`

@@ -26,7 +26,7 @@ type streamHandler struct {
 }
 
 type candleState struct {
-	candle entity.Candle
+	candle *entity.Candle
 	size   time.Duration
 }
 
@@ -37,7 +37,7 @@ type stream struct {
 	handlerTtl time.Duration
 	tokenLen   int
 
-	candles []candleState
+	candles map[string]*candleState
 
 	candlesSubscribers map[string]map[string]chan []byte
 
@@ -54,12 +54,7 @@ func NewStream(
 		handlerTtl: 24 * time.Hour,
 		tokenLen:   20,
 
-		candles: []candleState{
-			{
-				size:   time.Minute,
-				candle: entity.Candle{},
-			},
-		},
+		candles: map[string]*candleState{},
 
 		candlesSubscribers: map[string]map[string]chan []byte{},
 	}
@@ -83,30 +78,39 @@ func (s *stream) Start() {
 }
 
 func (s *stream) handleTrade(trade entity.TradeActivity) {
-	for i := range s.candles {
-		closed := common.UpdateCandle(&s.candles[i].candle, s.candles[i].size, trade)
-		if closed != nil {
-			s.emitCandle(*closed, s.candles[i].size.String())
+	trade.Symbol = fmt.Sprintf("%s:%s", trade.Exchange, trade.Pair)
+
+	s.mu.Lock()
+	candleS, ok := s.candles[trade.Symbol]
+	if !ok {
+		candleS = &candleState{
+			candle: &entity.Candle{},
+			size:   time.Minute,
 		}
+		s.candles[trade.Symbol] = candleS
+	}
+	s.mu.Unlock()
+
+	closed := common.UpdateCandle(candleS.candle, candleS.size, trade)
+	if closed != nil {
+		s.emitCandle(*closed, candleS.size.String())
 	}
 }
 
 func (s *stream) handleTimeBoundary(now time.Time) {
-	for i := range s.candles {
-		state := &s.candles[i]
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-		bucket := now.Truncate(state.size).Unix()
-
+	for _, state := range s.candles {
 		if state.candle.Epoch == 0 {
 			continue
 		}
 
+		bucket := now.Truncate(state.size).Unix()
+
 		if bucket > state.candle.Epoch {
-			closed := state.candle
-
-			s.emitCandle(closed, state.size.String())
-
-			s.rolloverCandle(&s.candles[i], bucket)
+			s.emitCandle(*state.candle, state.size.String())
+			s.rolloverCandle(state, bucket)
 		}
 	}
 }
@@ -114,13 +118,16 @@ func (s *stream) handleTimeBoundary(now time.Time) {
 func (s *stream) rolloverCandle(state *candleState, newOpen int64) {
 	prevClose := state.candle.Close
 
-	state.candle = entity.Candle{
-		Epoch:  newOpen,
-		Open:   prevClose,
-		High:   prevClose,
-		Low:    prevClose,
-		Close:  prevClose,
-		Volume: decimal.Zero,
+	state.candle = &entity.Candle{
+		Epoch:    newOpen,
+		Pair:     state.candle.Pair,
+		Exchange: state.candle.Exchange,
+		Symbol:   state.candle.Symbol,
+		Open:     prevClose,
+		High:     prevClose,
+		Low:      prevClose,
+		Close:    prevClose,
+		Volume:   decimal.Zero,
 	}
 }
 
@@ -131,9 +138,7 @@ func (s *stream) emitCandle(candle entity.Candle, size string) error {
 		return fmt.Errorf("[service][stream][emitCandle][json.Marshal] error: %w", err)
 	}
 
-	s.mu.Lock()
 	chs := s.candlesSubscribers[size]
-	s.mu.Unlock()
 
 	for channel, ch := range chs {
 		ch <- data

@@ -37,6 +37,7 @@ func InitCandle(candle *entity.Candle, bucket int64, trade entity.TradeActivity)
 	candle.Epoch = bucket
 	candle.Pair = trade.Pair
 	candle.Exchange = trade.Exchange
+	candle.Symbol = trade.Symbol
 	candle.Open = trade.FilledPrice
 	candle.High = trade.FilledPrice
 	candle.Low = trade.FilledPrice
