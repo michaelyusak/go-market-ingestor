@@ -59,6 +59,14 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 		},
 	}
 
+	listenedSymbols := []string{}
+
+	for pair, ok := range config.Exchange.Indodax.PairsToListen {
+		if ok {
+			listenedSymbols = append(listenedSymbols, "indodax:"+pair)
+		}
+	}
+
 	tradesRepo := quest.NewTrades(db)
 	candles1mRepo := quest.NewCandles1m(db)
 
@@ -69,6 +77,7 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	)
 	streamService := service.NewStream(
 		tradeActivityStreamCh,
+		listenedSymbols,
 	)
 
 	commonHandler := hHandler.NewCommon(&APP_HEALTHY)
@@ -143,4 +152,5 @@ func staticRouting(router *gin.Engine, localStorageStaticPath, localStorageDirec
 func streamRouting(router *gin.Engine, handler *handler.Stream) {
 	router.POST("/v1/stream/create", handler.Create)
 	router.GET("/v1/stream/start", handler.Start)
+	router.GET("/v1/stream/listened-symbol", handler.GetListenedSymbols)
 }

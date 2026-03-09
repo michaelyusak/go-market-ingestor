@@ -186,3 +186,11 @@ func (h *Stream) Start(ctx *gin.Context) {
 
 	common.CloseConn(conn)
 }
+
+func (h *Stream) GetListenedSymbols(ctx *gin.Context) {
+	ctx.Header("Content-Type", "application/json")
+
+	symbols := h.streamService.GetListenedSymbols()
+
+	hHelper.ResponseOK(ctx, symbols)
+}

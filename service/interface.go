@@ -14,4 +14,5 @@ type Stream interface {
 	CreateCandleStream(ctx context.Context, req entity.CreateStreamReq) (entity.CreateStreamRes, error)
 	StreamCandles(ctx context.Context, ch chan []byte, channel, token string) error
 	Stop(channel, token string) error
+	GetListenedSymbols() []string
 }

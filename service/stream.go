@@ -41,11 +41,14 @@ type stream struct {
 
 	candlesSubscribers map[string]map[string]chan []byte
 
+	listenedSymbols []string
+
 	mu sync.Mutex
 }
 
 func NewStream(
 	tradeActivityCh chan entity.TradeActivity,
+	listenedSymbols []string,
 ) *stream {
 	return &stream{
 		tradeActivityCh: tradeActivityCh,
@@ -57,7 +60,13 @@ func NewStream(
 		candles: map[string]*candleState{},
 
 		candlesSubscribers: map[string]map[string]chan []byte{},
+
+		listenedSymbols: listenedSymbols,
 	}
+}
+
+func (s *stream) GetListenedSymbols() []string {
+	return s.listenedSymbols
 }
 
 func (s *stream) Start() {
