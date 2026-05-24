@@ -157,7 +157,16 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 				High:     trade.FilledPrice,
 				Low:      trade.FilledPrice,
 				Close:    trade.FilledPrice,
-				Volume:   trade.BaseVolume,
+				Volume: entity.CandleVolume{
+					Total: trade.BaseVolume,
+				},
+			}
+
+			switch trade.Side {
+			case entity.TradeSideBuy:
+				buf.Volume.Buy = trade.BaseVolume
+			case entity.TradeSideSell:
+				buf.Volume.Sell = trade.BaseVolume
 			}
 
 			exchangeSymbolCandles[normalizedTime] = buf
@@ -165,7 +174,15 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 		}
 
 		buf.Close = trade.FilledPrice
-		buf.Volume = buf.Volume.Add(trade.BaseVolume)
+
+		buf.Volume.Total = buf.Volume.Total.Add(trade.BaseVolume)
+
+		switch trade.Side {
+		case entity.TradeSideBuy:
+			buf.Volume.Buy = buf.Volume.Buy.Add(trade.BaseVolume)
+		case entity.TradeSideSell:
+			buf.Volume.Sell = buf.Volume.Sell.Add(trade.BaseVolume)
+		}
 
 		if trade.FilledPrice.GreaterThan(buf.High) {
 			buf.High = trade.FilledPrice

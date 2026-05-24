@@ -136,7 +136,11 @@ func (s *stream) rolloverCandle(state *candleState, newOpen int64) {
 		High:     prevClose,
 		Low:      prevClose,
 		Close:    prevClose,
-		Volume:   decimal.Zero,
+		Volume: entity.CandleVolume{
+			Total: decimal.Zero,
+			Buy:   decimal.Zero,
+			Sell:  decimal.Zero,
+		},
 	}
 }
 

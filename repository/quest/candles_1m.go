@@ -22,15 +22,17 @@ func NewCandles1m(db *sql.DB) *candles1m {
 func (r *candles1m) InsertOne(ctx context.Context, candle entity.Candle) error {
 	q := `
 		INSERT INTO candles_1m
-		(timestamp, exchange, symbol, open, high, low, close, volume)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		(timestamp, exchange, symbol, open, high, low, close, volume, buy_volume, sell_volume)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `
 
 	openFl, _ := candle.Open.Float64()
 	highFl, _ := candle.High.Float64()
 	lowFl, _ := candle.Low.Float64()
 	closeFl, _ := candle.Close.Float64()
-	volFl, _ := candle.Volume.Float64()
+	volTotalFl, _ := candle.Volume.Total.Float64()
+	volBuyFl, _ := candle.Volume.Buy.Float64()
+	volSellFl, _ := candle.Volume.Sell.Float64()
 
 	_, err := r.db.ExecContext(ctx, q,
 		time.Unix(candle.Epoch, 0),
@@ -40,7 +42,9 @@ func (r *candles1m) InsertOne(ctx context.Context, candle entity.Candle) error {
 		highFl,
 		lowFl,
 		closeFl,
-		volFl,
+		volTotalFl,
+		volBuyFl,
+		volSellFl,
 	)
 	if err != nil {
 		return fmt.Errorf("[repository][quest][candles1m][InsertOne][db.ExecContext] error: %w", err)
@@ -51,7 +55,7 @@ func (r *candles1m) InsertOne(ctx context.Context, candle entity.Candle) error {
 
 func (r *candles1m) GetOne(ctx context.Context, timestamp time.Time, exchange, symbol string) (*entity.Candle, error) {
 	q := `
-		SELECT timestamp, exchange, symbol, open, high, low, close, volume
+		SELECT timestamp, exchange, symbol, open, high, low, close, volume, buy_volume, sell_volume
 		FROM candles_1m
 		WHERE exchange = $1
 			AND symbol = $2
@@ -69,7 +73,9 @@ func (r *candles1m) GetOne(ctx context.Context, timestamp time.Time, exchange, s
 		&candle.High,
 		&candle.Low,
 		&candle.Close,
-		&candle.Volume,
+		&candle.Volume.Total,
+		&candle.Volume.Buy,
+		&candle.Volume.Sell,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -87,10 +93,10 @@ func (r *candles1m) GetOne(ctx context.Context, timestamp time.Time, exchange, s
 func (r *candles1m) UpdateOne(ctx context.Context, candle entity.Candle) error {
 	q := `
 		UPDATE candles_1m
-		SET open = $1, high = $2, low = $3, close = $4, volume = $5
-		WHERE exchange = $6
-			AND symbol = $7
-			AND timestamp = $8
+		SET open = $1, high = $2, low = $3, close = $4, volume = $5, buy_volume = $6, sell_volume = $7
+		WHERE exchange = $8
+			AND symbol = $9
+			AND timestamp = $10
 	`
 
 	_, err := r.db.ExecContext(ctx, q,
@@ -98,7 +104,9 @@ func (r *candles1m) UpdateOne(ctx context.Context, candle entity.Candle) error {
 		candle.High,
 		candle.Low,
 		candle.Close,
-		candle.Volume,
+		candle.Volume.Total,
+		candle.Volume.Buy,
+		candle.Volume.Sell,
 		candle.Exchange,
 		candle.Pair,
 		time.Unix(candle.Epoch, 0),

@@ -42,11 +42,28 @@ func InitCandle(candle *entity.Candle, bucket int64, trade entity.TradeActivity)
 	candle.High = trade.FilledPrice
 	candle.Low = trade.FilledPrice
 	candle.Close = trade.FilledPrice
-	candle.Volume = trade.BaseVolume
+	candle.Volume = entity.CandleVolume{
+		Total: trade.BaseVolume,
+	}
+
+	switch trade.Side {
+	case entity.TradeSideBuy:
+		candle.Volume.Buy = trade.BaseVolume
+	case entity.TradeSideSell:
+		candle.Volume.Sell = trade.BaseVolume
+	}
 }
 
 func UpdateOHLC(candle *entity.Candle, trade entity.TradeActivity) {
-	candle.Volume = candle.Volume.Add(trade.BaseVolume)
+	candle.Volume.Total = candle.Volume.Total.Add(trade.BaseVolume)
+
+	switch trade.Side {
+	case entity.TradeSideBuy:
+		candle.Volume.Buy = candle.Volume.Buy.Add(trade.BaseVolume)
+	case entity.TradeSideSell:
+		candle.Volume.Sell = candle.Volume.Sell.Add(trade.BaseVolume)
+	}
+
 	candle.Close = trade.FilledPrice
 
 	if trade.FilledPrice.GreaterThan(candle.High) {
