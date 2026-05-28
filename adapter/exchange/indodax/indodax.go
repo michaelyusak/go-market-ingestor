@@ -21,8 +21,6 @@ type indodax struct {
 	client       *resty.Client
 	tradeTimeout time.Duration
 
-	pairs map[string]entity.PairMeta
-
 	tradeActivityCh []chan entity.TradeActivity
 
 	mu sync.Mutex
@@ -50,8 +48,6 @@ func NewClient(
 
 		client:       resty.New(),
 		tradeTimeout: tradeTimeout,
-
-		pairs: map[string]entity.PairMeta{},
 
 		tradeActivityCh: tradeActivityCh,
 	}
