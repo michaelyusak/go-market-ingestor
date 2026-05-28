@@ -12,11 +12,12 @@ import (
 func (b *binance) processAggTrade(data models.AggTradeResponse) error {
 	var ta entity.TradeActivityV2
 
-	if data.S == nil || data.P == nil || data.Q == nil || data.M == nil {
+	if data.S == nil || data.P == nil || data.Q == nil || data.M == nil || data.E == nil {
 		b, _ := json.Marshal(data)
 		return fmt.Errorf("[adapter][exchange][binance][processAggTrade] invalid aggTrade payload [raw: %s]", string(b))
 	}
 
+	ta.Epoch = *data.E / 1000
 	ta.Symbol = *data.S
 	ta.Exchange = "binance"
 

@@ -12,7 +12,7 @@ type binance struct {
 	tradeActivityCh []chan entity.TradeActivityV2
 }
 
-func NewAdapter(
+func NewClient(
 	tradeActivityCh []chan entity.TradeActivityV2,
 ) *binance {
 	conf := common.NewConfigurationWebsocketStreams(

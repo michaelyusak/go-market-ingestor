@@ -14,7 +14,7 @@ func (b *binance) ListenMarketData(id int, pairs []string) error {
 	for _, s := range pairs {
 		streams = append(
 			streams,
-			strings.ToLower(s)+"@aggTrade",
+			strings.ToLower(s),
 		)
 	}
 
@@ -23,12 +23,9 @@ func (b *binance) ListenMarketData(id int, pairs []string) error {
 		return fmt.Errorf("[adapter][exchange][binance][ListenMarketData] failed to connect to the streams: %w", err)
 	}
 
-	handler, err := b.client.WebsocketStreams.WebSocketStreamsAPI.AggTrade().Execute()
-	if err != nil {
-		return fmt.Errorf("[adapter][exchange][binance][ListenMarketData] failed to execute streams: %w", err)
-	}
+	aggTradeHandler := func(atr models.AggTradeResponse) {
+		logrus.WithField("symbol", *atr.S).Debug("[adapter][exchange][binance][ListenMarketData] new aggTrade message")
 
-	handler.On("message", func(atr models.AggTradeResponse) {
 		err := b.processAggTrade(atr)
 		if err != nil {
 			logrus.
@@ -36,7 +33,16 @@ func (b *binance) ListenMarketData(id int, pairs []string) error {
 				WithField("symbol", *atr.S).
 				Error("[adapter][exchange][binance][ListenMarketData][messageHandler]")
 		}
-	})
+	}
+
+	for _, s := range pairs {
+		handler, err := b.client.WebsocketStreams.WebSocketStreamsAPI.AggTrade().Symbol(strings.ToLower(s)).Execute()
+		if err != nil {
+			return fmt.Errorf("[adapter][exchange][binance][ListenMarketData] failed to execute streams: %w", err)
+		}
+
+		handler.On("message", aggTradeHandler)
+	}
 
 	return nil
 }
