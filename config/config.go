@@ -20,8 +20,13 @@ type IndodaxConfig struct {
 	Timeout                      hEntity.Duration `json:"timeout"`
 }
 
+type BinanceConfig struct {
+	PairsToListen map[string]bool `json:"pairs_to_listen"`
+}
+
 type ExchangeConfig struct {
 	Indodax IndodaxConfig `json:"indodax"`
+	Binance BinanceConfig `json:"binance"`
 }
 
 type LogConfig struct {

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"michaelyusak/go-market-ingestor.git/adapter/exchange/binance"
 	"michaelyusak/go-market-ingestor.git/adapter/exchange/indodax"
 	"michaelyusak/go-market-ingestor.git/config"
 	"michaelyusak/go-market-ingestor.git/entity"
@@ -33,11 +34,11 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	}
 	logrus.Info("Connected to postgres")
 
-	tradeActivityStreamCh := make(chan entity.TradeActivity, 50)
+	tradeActivityStreamCh := make(chan entity.TradeActivityV2, 50)
 
-	tradeActivityStorageCh := make(chan entity.TradeActivity, 50)
+	tradeActivityStorageCh := make(chan entity.TradeActivityV2, 50)
 
-	tradeActivityCh := []chan entity.TradeActivity{tradeActivityStreamCh, tradeActivityStorageCh}
+	tradeActivityCh := []chan entity.TradeActivityV2{tradeActivityStreamCh, tradeActivityStorageCh}
 
 	indodax := indodax.NewClient(
 		config.Exchange.Indodax.BaseUrl,
@@ -48,6 +49,10 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 		config.Exchange.Indodax.OrderbookWsChannelPrefix,
 		config.Exchange.Indodax.TradeActivityWsChannelPrefix,
 		time.Duration(config.Exchange.Indodax.Timeout),
+		tradeActivityCh,
+	)
+
+	binance := binance.NewClient(
 		tradeActivityCh,
 	)
 
@@ -64,6 +69,11 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	for pair, ok := range config.Exchange.Indodax.PairsToListen {
 		if ok {
 			listenedSymbols = append(listenedSymbols, "indodax:"+pair)
+		}
+	}
+	for pair, ok := range config.Exchange.Binance.PairsToListen {
+		if ok {
+			listenedSymbols = append(listenedSymbols, "binance:"+pair)
 		}
 	}
 
@@ -89,13 +99,21 @@ func newRouter(config *config.AppConfig) *gin.Engine {
 	storageService.Start()
 	streamService.Start()
 
-	pairsToListen := []string{}
+	indodaxPairsToListen := []string{}
 	for pair, listen := range config.Exchange.Indodax.PairsToListen {
 		if listen {
-			pairsToListen = append(pairsToListen, pair)
+			indodaxPairsToListen = append(indodaxPairsToListen, pair)
 		}
 	}
-	indodax.ListenMarketDataInPartition(pairsToListen, 10)
+	indodax.ListenMarketDataInPartition(indodaxPairsToListen, 10)
+
+	binancePairsToListen := []string{}
+	for pair, listen := range config.Exchange.Binance.PairsToListen {
+		if listen {
+			binancePairsToListen = append(binancePairsToListen, pair)
+		}
+	}
+	binance.ListenMarketDataInPartition(binancePairsToListen, 10)
 
 	return createRouter(routerOpts{
 		handler: struct {

@@ -31,7 +31,7 @@ type candleState struct {
 }
 
 type stream struct {
-	tradeActivityCh chan entity.TradeActivity
+	tradeActivityCh chan entity.TradeActivityV2
 
 	handlerMap map[string]streamHandler
 	handlerTtl time.Duration
@@ -47,7 +47,7 @@ type stream struct {
 }
 
 func NewStream(
-	tradeActivityCh chan entity.TradeActivity,
+	tradeActivityCh chan entity.TradeActivityV2,
 	listenedSymbols []string,
 ) *stream {
 	return &stream{
@@ -86,17 +86,15 @@ func (s *stream) Start() {
 	}()
 }
 
-func (s *stream) handleTrade(trade entity.TradeActivity) {
-	trade.Symbol = fmt.Sprintf("%s:%s", trade.Exchange, trade.Pair)
-
+func (s *stream) handleTrade(trade entity.TradeActivityV2) {
 	s.mu.Lock()
-	candleS, ok := s.candles[trade.Symbol]
+	candleS, ok := s.candles[trade.Exchange+":"+trade.Symbol]
 	if !ok {
 		candleS = &candleState{
 			candle: &entity.Candle{},
 			size:   time.Minute,
 		}
-		s.candles[trade.Symbol] = candleS
+		s.candles[trade.Exchange+":"+trade.Symbol] = candleS
 	}
 	s.mu.Unlock()
 
@@ -129,7 +127,6 @@ func (s *stream) rolloverCandle(state *candleState, newOpen int64) {
 
 	state.candle = &entity.Candle{
 		Epoch:    newOpen,
-		Pair:     state.candle.Pair,
 		Exchange: state.candle.Exchange,
 		Symbol:   state.candle.Symbol,
 		Open:     prevClose,
