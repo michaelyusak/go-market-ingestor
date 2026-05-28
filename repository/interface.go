@@ -7,7 +7,7 @@ import (
 )
 
 type Trades interface {
-	InsertMany(ctx context.Context, trades []entity.TradeActivity) error
+	InsertMany(ctx context.Context, trades []entity.TradeActivityV2) error
 }
 
 type Candles1m interface {

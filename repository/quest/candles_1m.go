@@ -37,7 +37,7 @@ func (r *candles1m) InsertOne(ctx context.Context, candle entity.Candle) error {
 	_, err := r.db.ExecContext(ctx, q,
 		time.Unix(candle.Epoch, 0),
 		candle.Exchange,
-		candle.Pair,
+		candle.Symbol,
 		openFl,
 		highFl,
 		lowFl,
@@ -68,7 +68,7 @@ func (r *candles1m) GetOne(ctx context.Context, timestamp time.Time, exchange, s
 	err := r.db.QueryRowContext(ctx, q, exchange, symbol, timestamp).Scan(
 		&candleTs,
 		&candle.Exchange,
-		&candle.Pair,
+		&candle.Symbol,
 		&candle.Open,
 		&candle.High,
 		&candle.Low,
@@ -108,7 +108,7 @@ func (r *candles1m) UpdateOne(ctx context.Context, candle entity.Candle) error {
 		candle.Volume.Buy,
 		candle.Volume.Sell,
 		candle.Exchange,
-		candle.Pair,
+		candle.Symbol,
 		time.Unix(candle.Epoch, 0),
 	)
 	if err != nil {

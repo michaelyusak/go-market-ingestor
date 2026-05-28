@@ -34,10 +34,10 @@ func (i *indodax) processTradeActivity(data json.RawMessage) error {
 	return nil
 }
 
-func (i *indodax) convertTradeActivity(key string, tradeActivityData []any) entity.TradeActivity {
-	filledPriceDecimal := decimal.NewFromFloat(tradeActivityData[4].(float64))
+func (i *indodax) convertTradeActivity(key string, tradeActivityData []any) entity.TradeActivityV2 {
+	priceDecimal := decimal.NewFromFloat(tradeActivityData[4].(float64))
 	baseVolumeDecimal, _ := decimal.NewFromString(tradeActivityData[5].(string))
-	tradedVolumeDecimal, _ := decimal.NewFromString(tradeActivityData[6].(string))
+	quoteVolumeDecimal, _ := decimal.NewFromString(tradeActivityData[6].(string))
 
 	var side entity.TradeSide
 
@@ -48,15 +48,14 @@ func (i *indodax) convertTradeActivity(key string, tradeActivityData []any) enti
 		side = entity.TradeSideSell
 	}
 
-	return entity.TradeActivity{
-		Epoch:        int64(tradeActivityData[1].(float64)),
-		Pair:         tradeActivityData[0].(string),
-		Side:         side,
-		Exchange:     "indodax",
-		FilledPrice:  filledPriceDecimal,
-		BaseVolume:   baseVolumeDecimal,
-		TradedVolume: tradedVolumeDecimal,
-		Notional:     filledPriceDecimal.Mul(tradedVolumeDecimal),
-		Key:          key,
+	return entity.TradeActivityV2{
+		Epoch:       int64(tradeActivityData[1].(float64)),
+		Symbol:      tradeActivityData[0].(string),
+		Side:        side,
+		Exchange:    "indodax",
+		Price:       priceDecimal,
+		BaseVolume:  baseVolumeDecimal,
+		QuoteVolume: quoteVolumeDecimal,
+		Key:         key,
 	}
 }

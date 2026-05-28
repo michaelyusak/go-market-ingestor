@@ -21,7 +21,7 @@ type indodax struct {
 	client       *resty.Client
 	tradeTimeout time.Duration
 
-	tradeActivityCh []chan entity.TradeActivity
+	tradeActivityCh []chan entity.TradeActivityV2
 
 	mu sync.Mutex
 }
@@ -35,7 +35,7 @@ func NewClient(
 	orderBookChanPrefix,
 	tradeActivityChanPrefix string,
 	tradeTimeout time.Duration,
-	tradeActivityCh []chan entity.TradeActivity,
+	tradeActivityCh []chan entity.TradeActivityV2,
 ) *indodax {
 	return &indodax{
 		baseUrl:                 baseUrl,
@@ -53,7 +53,7 @@ func NewClient(
 	}
 }
 
-func (i *indodax) broadcastTradeActivity(ta entity.TradeActivity) {
+func (i *indodax) broadcastTradeActivity(ta entity.TradeActivityV2) {
 	for _, ch := range i.tradeActivityCh {
 		select {
 		case ch <- ta:

@@ -14,9 +14,9 @@ import (
 type storage struct {
 	tradesRepo      repository.Trades
 	candles1mRepo   repository.Candles1m
-	tradeActivityCh chan entity.TradeActivity
+	tradeActivityCh chan entity.TradeActivityV2
 	candle1mBuffer  entity.Candle
-	tradesBuffer    []entity.TradeActivity
+	tradesBuffer    []entity.TradeActivityV2
 
 	mu sync.Mutex
 }
@@ -24,14 +24,14 @@ type storage struct {
 func NewStorage(
 	tradesRepo repository.Trades,
 	candles1mRepo repository.Candles1m,
-	tradeActivityCh chan entity.TradeActivity,
+	tradeActivityCh chan entity.TradeActivityV2,
 ) *storage {
 	return &storage{
 		tradesRepo:      tradesRepo,
 		candles1mRepo:   candles1mRepo,
 		tradeActivityCh: tradeActivityCh,
 		candle1mBuffer:  entity.Candle{},
-		tradesBuffer:    []entity.TradeActivity{},
+		tradesBuffer:    []entity.TradeActivityV2{},
 	}
 }
 
@@ -86,8 +86,8 @@ func (s *storage) ProcessTradesInBatch(ctx context.Context, fullSignalCh chan bo
 		}
 
 		s.mu.Lock()
-		tradesCopy := append([]entity.TradeActivity(nil), s.tradesBuffer...)
-		s.tradesBuffer = []entity.TradeActivity{}
+		tradesCopy := append([]entity.TradeActivityV2(nil), s.tradesBuffer...)
+		s.tradesBuffer = []entity.TradeActivityV2{}
 		s.mu.Unlock()
 
 		s.storeTrades(ctx, tradesCopy)
@@ -95,7 +95,7 @@ func (s *storage) ProcessTradesInBatch(ctx context.Context, fullSignalCh chan bo
 	}
 }
 
-func (s *storage) storeTrades(ctx context.Context, trades []entity.TradeActivity) {
+func (s *storage) storeTrades(ctx context.Context, trades []entity.TradeActivityV2) {
 	err := s.tradesRepo.InsertMany(ctx, trades)
 	if err != nil {
 		logrus.
@@ -109,7 +109,7 @@ func (s *storage) storeTrades(ctx context.Context, trades []entity.TradeActivity
 		Info("[service][storage][storeTrades] trades stored")
 }
 
-func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActivity) {
+func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActivityV2) {
 	candleBuffers := map[string]map[string]map[time.Time]*entity.Candle{}
 
 	for _, trade := range trades {
@@ -119,10 +119,10 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 			candleBuffers[trade.Exchange] = exchangeCandles
 		}
 
-		exchangeSymbolCandles, ok := exchangeCandles[trade.Pair]
+		exchangeSymbolCandles, ok := exchangeCandles[trade.Symbol]
 		if !ok {
 			exchangeSymbolCandles = map[time.Time]*entity.Candle{}
-			exchangeCandles[trade.Pair] = map[time.Time]*entity.Candle{}
+			exchangeCandles[trade.Symbol] = map[time.Time]*entity.Candle{}
 		}
 
 		tradeTime := time.Unix(trade.Epoch, 0)
@@ -130,12 +130,12 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 
 		buf, ok := exchangeSymbolCandles[normalizedTime]
 		if !ok {
-			stored, err := s.candles1mRepo.GetOne(ctx, normalizedTime, trade.Exchange, trade.Pair)
+			stored, err := s.candles1mRepo.GetOne(ctx, normalizedTime, trade.Exchange, trade.Symbol)
 			if err != nil {
 				logrus.
 					WithError(err).
 					WithField("exchange", trade.Exchange).
-					WithField("pair", trade.Pair).
+					WithField("symbol", trade.Symbol).
 					WithField("time", normalizedTime.String()).
 					Error("[service][storage][update1mCandle][candles1mRepo.GetOne]")
 
@@ -151,12 +151,11 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 		if buf == nil {
 			buf = &entity.Candle{
 				Epoch:    normalizedTime.Unix(),
-				Pair:     trade.Pair,
 				Exchange: trade.Exchange,
-				Open:     trade.FilledPrice,
-				High:     trade.FilledPrice,
-				Low:      trade.FilledPrice,
-				Close:    trade.FilledPrice,
+				Open:     trade.Price,
+				High:     trade.Price,
+				Low:      trade.Price,
+				Close:    trade.Price,
 				Volume: entity.CandleVolume{
 					Total: trade.BaseVolume,
 				},
@@ -173,7 +172,7 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 			continue
 		}
 
-		buf.Close = trade.FilledPrice
+		buf.Close = trade.Price
 
 		buf.Volume.Total = buf.Volume.Total.Add(trade.BaseVolume)
 
@@ -184,12 +183,12 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 			buf.Volume.Sell = buf.Volume.Sell.Add(trade.BaseVolume)
 		}
 
-		if trade.FilledPrice.GreaterThan(buf.High) {
-			buf.High = trade.FilledPrice
+		if trade.Price.GreaterThan(buf.High) {
+			buf.High = trade.Price
 		}
 
-		if trade.FilledPrice.LessThan(buf.Low) {
-			buf.Low = trade.FilledPrice
+		if trade.Price.LessThan(buf.Low) {
+			buf.Low = trade.Price
 		}
 
 		// candleBuffers[normalizedTime] = buf
@@ -204,7 +203,7 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 						logrus.
 							WithError(err).
 							WithField("exchange", candle.Exchange).
-							WithField("pair", candle.Pair).
+							WithField("symbol", candle.Symbol).
 							WithField("time", time.Unix(candle.Epoch, 0).String()).
 							Error("[service][storage][update1mCandle][candles1mRepo.UpdateOne]")
 						continue
@@ -212,7 +211,7 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 
 					logrus.
 						WithField("exchange", candle.Exchange).
-						WithField("pair", candle.Pair).
+						WithField("symbol", candle.Symbol).
 						WithField("time", time.Unix(candle.Epoch, 0).String()).
 						Info("[service][storage][update1mCandle]  updated candle")
 
@@ -224,7 +223,7 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 					logrus.
 						WithError(err).
 						WithField("exchange", candle.Exchange).
-						WithField("pair", candle.Pair).
+						WithField("symbol", candle.Symbol).
 						WithField("time", time.Unix(candle.Epoch, 0).String()).
 						Error("[service][storage][update1mCandle][candles1mRepo.InsertOne]")
 					continue
@@ -232,7 +231,7 @@ func (s *storage) update1mCandle(ctx context.Context, trades []entity.TradeActiv
 
 				logrus.
 					WithField("exchange", candle.Exchange).
-					WithField("pair", candle.Pair).
+					WithField("symbol", candle.Symbol).
 					WithField("time", time.Unix(candle.Epoch, 0).String()).
 					Info("[service][storage][update1mCandle] inserted candle")
 			}

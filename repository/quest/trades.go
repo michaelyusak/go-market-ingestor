@@ -19,7 +19,7 @@ func NewTrades(db *sql.DB) *trades {
 	}
 }
 
-func (r *trades) InsertMany(ctx context.Context, trades []entity.TradeActivity) error {
+func (r *trades) InsertMany(ctx context.Context, trades []entity.TradeActivityV2) error {
 	var sb strings.Builder
 	sb.WriteString("INSERT INTO trades (timestamp, exchange, symbol, price, quantity, side) VALUES ")
 
@@ -31,10 +31,10 @@ func (r *trades) InsertMany(ctx context.Context, trades []entity.TradeActivity) 
 
 		fmt.Fprintf(&sb, "($%d,$%d,$%d,$%d,$%d,$%d)", i*6+1, i*6+2, i*6+3, i*6+4, i*6+5, i*6+6)
 
-		priceFl, _ := trade.FilledPrice.Float64()
-		quantityFl, _ := trade.TradedVolume.Float64()
+		priceFl, _ := trade.Price.Float64()
+		quantityFl, _ := trade.BaseVolume.Float64()
 
-		vals = append(vals, time.Unix(trade.Epoch, 0), trade.Exchange, trade.Pair, priceFl, quantityFl, trade.Side)
+		vals = append(vals, time.Unix(trade.Epoch, 0), trade.Exchange, trade.Symbol, priceFl, quantityFl, trade.Side)
 	}
 
 	_, err := r.db.ExecContext(ctx, sb.String(), vals...)
